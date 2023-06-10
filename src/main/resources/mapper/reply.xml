@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD-Mapper 3.0//EN"
+        "http://mybatis.org/schema/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.ssafy.board.mapper.ReplyMapper">
+    <insert id="insertReply" parameterType="ReplyQueryWrapper">
+        insert into reply_${name} (author_no, article_no, content) values ((select no from real_user where id = #{userId}), #{articleNo}, #{content});
+    </insert>
+
+    <select id="selectReply" parameterType="ReplySelectQuery" resultType="Reply">
+        select * from reply_${name}_view where article_no = #{articleNo}
+    </select>
+
+    <delete id="deleteReply" parameterType="ReplyQueryWrapper">
+        delete from reply_${name} where reply_no = #{replyNo} and (
+        (
+        (select no from real_user where id = #{userId}) = (select author_no from (select author_no from reply_${name} where reply_no = #{replyNo}) as t)
+        )
+        or (#{admin} = true)
+        )
+    </delete>
+</mapper>

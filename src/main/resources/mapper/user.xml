@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD-Mapper 3.0//EN"
+        "http://mybatis.org/schema/mybatis-3-mapper.dtd">
+        
+<mapper namespace="com.ssafy.user.mapper.UserMapper">
+
+	<resultMap id="userMap" type="user">
+		<id column="no" property="no"/>
+		<result column="id" property="id"/>
+		<result column="nickname" property="nickname"/>
+		<result column="email" property="email"/>
+		<result column="admin" property="admin"/>
+	</resultMap> 
+	
+	<resultMap id="userSecretMap" type="userSecret" extends="userMap">
+		<result column="pw" property="pw"/>
+		<result column="salt" property="salt"/>
+		<result column="hint" property="hint"/>
+	</resultMap>
+
+	<insert id="signUp" parameterType="userSecret" >
+		insert into real_user (id, pw, nickname, email, salt, hint)
+		values (#{id}, #{pw}, #{nickname}, #{email}, #{salt}, #{hint})
+		<selectKey keyColumn="no" keyProperty="no" resultType="int" order="AFTER">
+			select last_insert_id();
+		</selectKey>
+	</insert>
+
+	<select id="select" parameterType="string" resultMap="userMap">
+		select no, id, nickname, email, admin, enabled
+		from user
+		where id = #{id} and enabled = true
+	</select>
+
+	<select id="selectSecret" parameterType="string" resultMap="userSecretMap">
+		select no, id, nickname, email, admin, enabled, pw, salt, hint
+		from user
+		where id = #{id} and enabled = true
+	</select>
+
+	<update id="dropout" parameterType="string">
+		update real_user
+		set enabled = false, salt = "", pw = "", hint = "",
+		where id=#{id} and enabled = true
+	</update>
+	
+	<update id="reset" parameterType="userSecret">
+		update real_user
+		set pw=#{pw}, salt=#{salt}
+		where no=(select no from (select no from real_user where id = #{id}) as t) and enabled = true
+	</update>
+	
+	<select id="getEmail" parameterType="string" resultType="string">
+		select email
+		from real_user
+		where id=#{id} and enabled = true
+	</select>
+
+	<update id="edit" parameterType="userSecret">
+		update real_user
+		set pw = #{pw}, nickname=#{nickname}, email=#{email}, hint=#{hint}
+		where no=(select no from (select no from real_user where id = #{id}) as t) and enabled = true
+	</update>
+
+	<select id="checkIfIdAvailable" parameterType="String" resultType="boolean">
+		select count(id) xor 1 from real_user where id = #{id};
+	</select>
+
+	<select id="checkIfIdEnabled" parameterType="String" resultType="boolean">
+		select count(id) from real_user where id = #{id} and enabled = true;
+	</select>
+
+	<select id="checkDuplicatedNickname" parameterType="String" resultType="boolean">
+		select count(nickname) from real_user where nickname = #{nickname}
+	</select>
+
+	<select id="getBasicInfo" parameterType="string" resultType="java.util.Map">
+		select id, email, hint from real_user where id = #{id}
+	</select>
+</mapper>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD-Mapper 3.0//EN"
+        "http://mybatis.org/schema/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.ssafy.charger.electric.mapper.ElectricMapper">
+    <select id="selectChargers" parameterType="Integer" resultType="ElectricChargingEntity">
+        select * from electric_charging_view where statId = (select statId from electric_charing_station where no = #{no});
+    </select>
+
+    <insert id="insertStation" parameterType="java.util.List">
+        <foreach collection="list" item="item" separator=";">
+            insert ignore into electric_charing_station (statId, statNm, addr, location, lat, lng, coordinate) values (#{item.statId}, #{item.statNm}, #{item.addr}, #{item.location}, #{item.lat}, #{item.lng}, point(#{item.lng}, #{item.lat}));
+            insert ignore into electric_charger (statId, chgerId, chgerType) values (#{item.statId}, #{item.chgerId}, #{item.chgerType})
+        </foreach>
+    </insert>
+
+    <select id="selectNearStationNo" parameterType="ElectricNearQuery" resultType="Integer">
+        <foreach collection="attractionId" item="item" separator=" union distinct ">
+            (select no from electric_charing_station where st_distance_sphere(coordinate, (select coordinate from attraction_info where content_id = #{item})) &lt; #{meters})
+        </foreach>
+    </select>
+</mapper>

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD-Mapper 3.0//EN"
+        "http://mybatis.org/schema/mybatis-3-mapper.dtd">
+<!--
+    int regist(BoardQueryWarpper query);
+    int delete(BoardQueryWarpper query);
+    Page<Board> list(BoardQueryWarpper query);
+    int edit(BoardQueryWarpper query);
+    boolean adminRequired(BoardQueryWarpper query);
+    Board select(BoardQueryWarpper query);
+    List<Board> keywordSelect(BoardQueryWarpper query, String keyword);
+
+-->
+
+<mapper namespace="com.ssafy.board.mapper.BoardMapper">
+    <insert id="regist" parameterType="BoardQueryWrapper">
+        insert into ${name} (author_no, title, content)
+        values (#{authorNo}, #{title}, #{content})
+        <selectKey keyProperty="articleNo" keyColumn="article_no" resultType="int" order="AFTER">
+            select last_insert_id()
+        </selectKey>	
+    </insert>
+
+    <update id="delete" parameterType="BoardQueryWrapper">
+        update ${name}
+        set enabled = false
+        where (article_no = #{articleNo}) and (#{admin}=true or author_no = (select no from real_user where id = #{authorId}))
+    </update>
+
+    <select id="list" parameterType="BoardQueryWrapper" resultMap="boardDetailMap">
+        select * from ${name} where enabled = true order by article_no desc
+    </select>
+
+    <update id="edit" parameterType="BoardQueryWrapper">
+        update ${name}
+        set title = #{title}, content = #{content}
+        where (article_no = #{articleNo}) and (#{admin}=true or author_no = (select no from real_user where id = #{authorId}))
+    </update>
+
+    <select id="adminRequired" parameterType="string" resultType="boolean">
+        select count(*) from admin_require where name = #{name}
+    </select>
+
+    <select id="select" parameterType="BoardQueryWrapper" resultMap="boardDetailMap">
+        select * from ${name} where article_no = #{articleNo} and enabled = true
+    </select>
+
+    <select id="keywordSelect" parameterType="BoardQueryWrapper" resultMap="boardDetailMap">
+        select * from ${name} where (title like concat('%', #{keyword}, '%') or content like concat('%', #{keyword}, '%')) and enabled = true
+    </select>
+    
+    <resultMap id="boardMap" type="board">
+        <id column="article_no" property="articleNo"/>
+        <result column="author_no" property="authorNo"/>
+        <result column="title" property="title"/>
+        <result column="content" property="content"/>
+        <result column="time" property="time"/>
+        <result column="enabled" property="enabled"/>
+    </resultMap>
+    
+    <resultMap id="boardDetailMap" type="board" extends="boardMap">
+        <result column="id" property="id"/>
+        <result column="nickname" property="nickName"/>
+    </resultMap>
+</mapper>

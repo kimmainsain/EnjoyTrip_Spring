@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD-Mapper 3.0//EN"
+        "http://mybatis.org/schema/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.ssafy.attraction.mapper.AttractionMapper">
+    
+    <select id="select" resultMap="attractionMap" parameterType="int">
+        select * from attraction where content_id = #{contentId}
+    </select>
+
+    <select id="list" resultMap="attractionMap" parameterType="attractionKeywordSearchDto">
+        select * from attraction
+        <trim prefix="where" prefixOverrides="and">
+            <if test="keyword != null">
+                and title like concat('%', #{keyword}, '%')
+            </if>
+            <if test="contentTypeId != null">
+                and content_type_id = #{contentTypeId}
+            </if>
+            <if test="sidoCode != null">
+                and sido_code = #{sidoCode}
+            </if>
+            <if test="gugunCode != null">
+                and gugun_code = #{gugunCode}
+            </if>
+        </trim>
+    </select>
+
+    <select id="listAdjacentAttractions" parameterType="AttractionAdjacentQuery" resultMap="attractionMap">
+        select * from attraction where content_id in (
+        <foreach collection="attractionIdList" item="item" separator="union distinct">
+            (select content_id from attraction_info where st_distance_sphere(coordinate, (select coordinate from attraction_info where content_id = #{item})) &lt; #{distInMeters})
+        </foreach>
+        ) and content_id not in (
+        <foreach collection="attractionIdList" item="item" separator=",">
+            #{item}
+        </foreach>
+        )
+    </select>
+
+    <resultMap id="attractionMap" type="attraction">
+        <id column="content_id" property="contentId"/>
+        <result column="title" property="title"/>
+        <result column="content_type_id" property="contentTypeId"/>
+        <result column="addr1" property="addr1"/>
+        <result column="addr2" property="addr2"/>
+        <result column="zipcode" property="zipcode"/>
+        <result column="tel" property="tel"/>
+        <result column="first_image" property="firstImage"/>
+        <result column="sido_code" property="sidoCode"/>
+        <result column="gugun_code" property="gugunCode"/>
+        <result column="latitude" property="latitude"/>
+        <result column="longitude" property="longitude"/>
+        <result column="homepage" property="homepage"/>
+        <result column="overview" property="overview"/>
+        <result column="telname" property="telname"/>
+    </resultMap>
+</mapper>

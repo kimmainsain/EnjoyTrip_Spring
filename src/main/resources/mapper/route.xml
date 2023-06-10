@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD-Mapper 3.0//EN"
+        "http://mybatis.org/schema/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.ssafy.route.mapper.RouteMapper">
+    <select id="getBasicContentId" resultType="int">
+        select id from route order by id desc
+    </select>
+
+    <select id="listBasicRoute" parameterType="java.util.List" resultType="RouteBasic">
+        <foreach collection="routeId" item="item" separator=" union ">
+            (
+            select l.*, (select json_arrayagg(first_image) from (select distinct first_image from attraction_info where content_id in (select attraction_id from route_detail where route_id = #{item}) and first_image is not null and first_image != '') as t) as img
+            from route_basic_view as l
+            where id = #{item}
+            )
+        </foreach>
+    </select>
+
+    <select id="selectRoute" resultType="RouteDetailEntity">
+        select * from route_detail_view where id = #{routeId}
+    </select>
+
+    <!-- Route에 id로 0아닌 값이 들어갔는지 확인하면 됨... -->
+    <insert id="insertRouteDetail" parameterType="RouteDetail">
+        insert into route (title, memo, author) values (#{title}, #{memo}, #{userNo});
+        select last_insert_id() into @route_id;
+        insert into route_detail (route_id, route_sequence, attraction_id) values
+        <foreach collection="data" item="item" separator=",">
+            (@route_id, #{item.routeSequence}, #{item.attractionId})
+        </foreach>
+        <selectKey keyColumn="id" keyProperty="id" order="AFTER" resultType="int">
+            select @route_id as id;
+        </selectKey>
+    </insert>
+
+    <!--
+create procedure `update_route_detail_with_authorization`(
+    editable tinyint(1),
+    route_id int,
+    route_sequence int,
+    attraction_id int
+)
+begin
+    if editable = 1 then
+        insert into route_detail (`route_id`, `route_sequence`, `attraction_id`) values (route_id, route_sequence, attraction_id)
+            on duplicate key update attraction_id = VALUES(attraction_id);
+    end if;
+end;
+     -->
+    <select id="updateRouteDetail" parameterType="RouteQueryWrapper" resultType="boolean">
+        delete from route_detail where ((#{admin} = true) or (select author from route where id = #{id}) =
+        #{userNo}) and (route_id = #{id} and id not in
+        <foreach collection="data" item="item" open="(" close=")" separator=",">
+            #{item.detailId}
+        </foreach>
+        );
+        select ((select author from route where id = #{id}) = #{userNo}) or #{admin} into @editable;
+        update route set title = #{title}, memo = #{memo} where id = #{id} and (@editable = true);
+        <foreach collection="data" item="item" separator=";">
+            call update_route_detail_with_authorization(@editable, #{id}, #{item.routeSequence}, #{item.attractionId})
+        </foreach>
+        ;
+        select @editable;
+    </select>
+
+    <!--
+    create procedure `delete_route`(
+    editable tinyint(1),
+    route_id int
+)
+begin
+    if editable = 1 then
+        delete from route_bookmark where `route_id` = route_id;
+        delete from route_review where `route_id` = route_id;
+        delete from route_detail where `route_id` = route_id;
+        delete from route where `route_id` = route_id;
+        end if;
+end;
+    -->
+
+    <select id="deleteRoute" parameterType="RouteQueryWrapper" resultType="boolean">
+        select ((select author from route where id = #{id}) = #{userNo}) or #{admin} into @editable;
+        call delete_route(@editable, #{id});
+        select @editable;
+    </select>
+
+    <insert id="addReview" parameterType="RouteReview">
+        insert into route_review (user_no, route_id, star, review) values (#{userNo}, #{routeId}, #{star}, #{review});
+        <selectKey keyColumn="id" keyProperty="reviewId" order="AFTER" resultType="int">
+            select last_insert_id();
+        </selectKey>
+    </insert>
+
+    <update id="updateReview" parameterType="RouteReview">
+        update route_review set star = #{star}, review=#{review} where (id = #{reviewId}) and ((#{userNo} = (select * from (select user_no from route_review where id = #{reviewId}) as t)) or (#{admin} = true));
+    </update>
+
+    <delete id="deleteReview">
+        delete from route_review where (id = #{reviewId}) and ((#{userNo} = (select * from (select user_no from route_review where id = #{reviewId}) as t)) or (#{admin} = true));
+    </delete>
+
+    <insert id="addBookmark" parameterType="RouteBasic">
+        insert into route_bookmark (user_no, route_id) VALUES (#{userNo}, #{id});
+    </insert>
+
+    <!-- Primary key는 auto increment 된 것이지만... unique key로 user no + route_id를 가지고 있어서 이걸 그냥 지워주면 되는데...
+     어차피 controller 단에서 세션에서 해당 유저의 번호를 꺼내서 주든... 아니면 관리자인 경우 처리해줄 테니...
+     여긴 따로 로직 필요 없을 듯...-->
+    <delete id="removeBookmark" parameterType="RouteBasic">
+        delete from route_bookmark where route_id = #{id} and user_no = #{userNo};
+    </delete>
+
+    <select id="getBookmarkId" resultType="int">
+        select route_id from route_bookmark where user_no = #{userNo}
+    </select>
+
+
+    <select id="listReviewByUserNo" parameterType="int" resultMap="reviewMap">
+        select * from route_review where user_no = #{userNo}
+    </select>
+
+    <select id="listReviewByRouteId" parameterType="int" resultMap="reviewMap">
+        select * from route_review where route_id = #{routeId}
+    </select>
+
+    <select id="checkReviewByRouteIDUserNo" parameterType="RouteReviewQueryWrapper" resultType="int">
+        select count(*) from route_review where route_id = #{routeId} and user_no = #{userNo}
+    </select>
+
+    <!--
+        private int id;
+    private String title;
+    private String memo;
+    private int userNo;
+    private String nickname;
+    private Float star;
+    private JSONObject[] img;
+
+    <resultMap id="basicRouteMap" type="RouteBasic">
+        <id property="id" column="id"/>
+        <result property="title" column="title"/>
+        <result property="memo" column="memo"/>
+        <result property="userNo" column="user_no"/>
+        <result property="nickname" column="nickname"/>
+        <result property="star" column="star"/>
+        <result property="img" column="img" javaType="String">
+    </resultMap>
+
+    -->
+
+    <select id="checkBookmark" resultType="boolean" parameterType="RouteReviewCheckWrapper">
+        select count(*) from route_bookmark where user_no = (select no from user where id = #{id}) and route_id = #{routeId};
+    </select>
+
+    <resultMap id="reviewMap" type="RouteReview">
+        <id column="id" property="reviewId"/>
+        <result column="user_no" property="userNo"/>
+        <result column="route_id" property="routeId"/>
+        <result column="star" property="star"/>
+        <result column="review" property="review"/>
+    </resultMap>
+</mapper>
